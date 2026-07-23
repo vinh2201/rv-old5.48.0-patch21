@@ -2,12 +2,16 @@ rootProject.name = "revanced-patches"
 
 pluginManagement {
     repositories {
+        mavenLocal()
         gradlePluginPortal()
         google()
         maven {
-            name = "githubPackages"
+            name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/revanced/registry")
-            credentials(PasswordCredentials::class)
+            credentials {
+                username = providers.gradleProperty("gpr.user").getOrElse(System.getenv("GITHUB_ACTOR"))
+                password = providers.gradleProperty("gpr.key").getOrElse(System.getenv("GITHUB_TOKEN"))
+            }
         }
     }
 }
