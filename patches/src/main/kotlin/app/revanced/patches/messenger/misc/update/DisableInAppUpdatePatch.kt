@@ -3,7 +3,8 @@ package app.revanced.patches.messenger.misc.update
 import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
-import org.jf.dexlib2.builder.MutableMethod
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
