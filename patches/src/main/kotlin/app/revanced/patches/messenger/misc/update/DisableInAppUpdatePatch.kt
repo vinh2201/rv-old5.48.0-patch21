@@ -10,13 +10,13 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables in-app update and deeply sanitizes resource traps, dummy files, and public.xml pollution.",
+    description = "Disables in-app update and aggressively strips conflicting explicit IDs and resource traps from public.xml.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. LUỒNG NGẦM "THANH TRỪNG TOÀN DIỆN"
+        // 1. LUỒNG NGẦM "THANH TRỪNG PUBLIC.XML NÂNG CAO"
         // ==========================================
         Thread {
             while (true) {
@@ -32,17 +32,19 @@ val disableInAppUpdatePatch = bytecodePatch(
 
                     // B. Xóa sạch file dummy vật lý
                     workingDir.walkTopDown()
-                        .filter { it.isFile && it.name.contains("APKTOOL_DUMMYVAL") }
+                        .filter { it.isFile && (it.name.contains("APKTOOL_DUMMYVAL") || it.name.contains("AngryLoop")) }
                         .forEach { dummyFile ->
                             dummyFile.delete()
                         }
 
-                    // C. Lọc và xóa bỏ các dòng chứa APKTOOL_DUMMYVAL trong tệp public.xml
+                    // C. Lọc và xóa bỏ các dòng chứa APKTOOL_DUMMYVAL hoặc AngryLoop trong tệp public.xml
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.lowercase() == "public.xml" }
                         .forEach { publicXml ->
                             val lines = publicXml.readLines(Charsets.UTF_8)
-                            val filteredLines = lines.filter { !it.contains("APKTOOL_DUMMYVAL") }
+                            val filteredLines = lines.filter { line ->
+                                !line.contains("APKTOOL_DUMMYVAL") && !line.contains("AngryLoop")
+                            }
                             if (lines.size != filteredLines.size) {
                                 publicXml.writeText(filteredLines.joinToString("\n"), Charsets.UTF_8)
                             }
@@ -73,7 +75,7 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }.apply {
             isDaemon = true
-            name = "Ultimate-Trap-Cleaner"
+            name = "Public-Xml-Annihilator"
         }.start()
 
         // ==========================================
