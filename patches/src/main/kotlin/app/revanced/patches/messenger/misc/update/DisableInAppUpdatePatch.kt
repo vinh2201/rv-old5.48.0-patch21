@@ -10,27 +10,51 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables in-app update and safely neutralizes resource traps without deleting physical resource directories.",
+    description = "Disables in-app update and sanitizes invalid resource folder names containing dots for AAPT2 compatibility.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. LUỒNG NGẦM "DỌN RÁC AN TOÀN"
+        // 1. LUỒNG NGẦM "CHUẨN HÓA TÊN THƯ MỤC"
         // ==========================================
         Thread {
             while (true) {
                 try {
                     val workingDir = File(System.getProperty("user.dir"))
                     
-                    // A. CHỈ xóa các file dummy vật lý chứa chữ APKTOOL_DUMMYVAL, TUYỆT ĐỐI KHÔNG xóa thư mục phân mảnh (.2, .3...) để tránh lỗi not found
+                    // A. Xóa sạch file dummy vật lý gây rác
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.contains("APKTOOL_DUMMYVAL") }
                         .forEach { dummyFile ->
                             dummyFile.delete()
                         }
 
-                    // B. Lọc sạch tệp public.xml: Chỉ loại bỏ các dòng gán ID rác của dummy
+                    // B. Khắc phục lỗi invalid file path: Đổi tên các thư mục res có chứa dấu chấm (như drawable.2-xxhdpi) thành hợp lệ
+                    val resDir = File(workingDir, "patcher/apk/res")
+                    if (resDir.exists() && resDir.isDirectory) {
+                        resDir.listFiles()?.forEach { subDir ->
+                            if (subDir.isDirectory && subDir.name.contains(".")) {
+                                val validName = subDir.name.replace('.', '_')
+                                val newDir = File(subDir.parentFile, validName)
+                                if (!newDir.exists()) {
+                                    subDir.renameTo(newDir)
+                                } else {
+                                    // Nếu thư mục đích đã tồn tại, gom nội dung sang đó rồi xóa thư mục cũ
+                                    subDir.walkTopDown().forEach { file ->
+                                        if (file.isFile) {
+                                            val targetFile = File(newDir, file.relativeTo(subDir).path)
+                                            targetFile.parentFile?.mkdirs()
+                                            file.copyTo(targetFile, overwrite = true)
+                                        }
+                                    }
+                                    subDir.deleteRecursively()
+                                }
+                            }
+                        }
+                    }
+
+                    // C. Lọc sạch tệp public.xml: Loại bỏ các dòng gán ID rác của dummy
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.lowercase() == "public.xml" }
                         .forEach { publicXml ->
@@ -48,7 +72,7 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }.apply {
             isDaemon = true
-            name = "Safe-Resource-Sanitizer"
+            name = "Folder-Name-Sanitizer"
         }.start()
 
         // ==========================================
