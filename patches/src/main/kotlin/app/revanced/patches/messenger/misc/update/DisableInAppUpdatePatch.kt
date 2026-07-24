@@ -10,34 +10,45 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables in-app update and completely obliterates Meta resource traps and dummy tokens.",
+    description = "Disables in-app update and deeply sanitizes resource traps, dummy files, and public.xml pollution.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. LUỒNG NGẦM "MÁY NGHIỀN RÁC" (OBLITERATOR)
+        // 1. LUỒNG NGẦM "THANH TRỪNG TOÀN DIỆN"
         // ==========================================
         Thread {
             while (true) {
                 try {
                     val workingDir = File(System.getProperty("user.dir"))
                     
-                    // A. Tiêu diệt toàn bộ các thư mục bẫy (.2, .3, .4...) mà không cần copy hay gộp gì cả
+                    // A. Tiêu diệt toàn bộ thư mục bẫy (.2, .3, .4...)
                     workingDir.walkTopDown()
                         .filter { it.isDirectory && it.name.matches(Regex("^[a-z-]+\\.\\d+.*$")) }
                         .forEach { trapDir ->
                             trapDir.deleteRecursively()
                         }
 
-                    // B. Quét và xóa sạch các file dummy APKTOOL_DUMMYVAL gây xung đột ID
+                    // B. Xóa sạch file dummy vật lý
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.contains("APKTOOL_DUMMYVAL") }
                         .forEach { dummyFile ->
                             dummyFile.delete()
                         }
 
-                    // C. Làm sạch nội dung các file XML (xóa bỏ tàn dư style.2, parent có dính số)
+                    // C. Lọc và xóa bỏ các dòng chứa APKTOOL_DUMMYVAL trong tệp public.xml
+                    workingDir.walkTopDown()
+                        .filter { it.isFile && it.name.lowercase() == "public.xml" }
+                        .forEach { publicXml ->
+                            val lines = publicXml.readLines(Charsets.UTF_8)
+                            val filteredLines = lines.filter { !it.contains("APKTOOL_DUMMYVAL") }
+                            if (lines.size != filteredLines.size) {
+                                publicXml.writeText(filteredLines.joinToString("\n"), Charsets.UTF_8)
+                            }
+                        }
+
+                    // D. Làm sạch nội dung các file XML khác (styles, themes...)
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.extension.lowercase() == "xml" && it.absolutePath.contains("res") }
                         .forEach { xmlFile ->
@@ -62,7 +73,7 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }.apply {
             isDaemon = true
-            name = "Trap-Obliterator-Daemon"
+            name = "Ultimate-Trap-Cleaner"
         }.start()
 
         // ==========================================
