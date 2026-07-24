@@ -16,24 +16,31 @@ internal val inAppUpdaterConstructorFingerprint = fingerprint {
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables the in-app update check mechanism and sanitizes resource traps.",
+    description = "Disables the in-app update check mechanism and dynamically sanitizes resource traps.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // Lệnh siêu mạnh: Quét toàn bộ thư mục, dọn sạch mọi thư mục bẫy *.2 (anim.2, color.2, drawable.2, ...)
+        // 1. Quét động đa nền tảng (PC & Mobile) và tiêu diệt thư mục/file bẫy
         try {
-            File(".").walkTopDown().forEach { file ->
-                if (file.isDirectory) {
-                    val name = file.name
-                    if (name.endsWith(".2") || name.contains("APKTOOL_DUMMYVAL")) {
-                        file.deleteRecursively()
-                    }
-                }
-            }
-        } catch (_: Exception) {}
+            val baseDir = File(".")
+            
+            // Thu thập danh sách các thư mục/file rác cần xóa (tìm các folder chứa ".2" và file DUMMY)
+            // Dùng walkBottomUp() để quét từ dưới lên, đảm bảo an toàn khi xóa thư mục chứa file.
+            val trashes = baseDir.walkBottomUp().filter { file ->
+                val name = file.name
+                (file.isDirectory && name.contains(".2")) || 
+                (file.isFile && name.contains("APKTOOL_DUMMYVAL"))
+            }.toList()
 
-        // Vô hiệu hóa InAppUpdater một cách an toàn tuyệt đối
+            // Tiến hành xóa sổ hoàn toàn
+            trashes.forEach { it.deleteRecursively() }
+            
+        } catch (e: Exception) {
+            println("Cleanup error: ${e.message}")
+        }
+
+        // 2. Vô hiệu hóa InAppUpdater một cách an toàn
         try {
             val targetMethod = inAppUpdaterConstructorFingerprint.methodOrNull
             if (targetMethod != null) {
