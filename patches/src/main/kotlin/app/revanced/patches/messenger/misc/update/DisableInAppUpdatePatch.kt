@@ -4,10 +4,13 @@ import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
 
-// Dùng Fingerprint quét thẳng đến chuỗi định danh InAppUpdater để lấy trọn vẹn method
-internal val inAppUpdateFingerprint = fingerprint {
+// Khóa cứng chính xác vào class InAppUpdater thực sự, không quét chuỗi linh tinh nữa
+internal val inAppUpdaterConstructorFingerprint = fingerprint {
     returns("V")
-    strings("InAppUpdater.checkUpdateAvailability")
+    custom { method, classDef ->
+        method.name == "<init>" &&
+        classDef.type == "Lcom/facebook/messenger/app/update/InAppUpdater;"
+    }
 }
 
 @Suppress("unused")
@@ -18,7 +21,12 @@ val disableInAppUpdatePatch = bytecodePatch(
     compatibleWith("com.facebook.orca")
 
     execute {
-        // Thay vì đụng vào resource hay constructor, ta vô hiệu hóa ngay lệnh đầu tiên của hàm chứa chuỗi update
-        inAppUpdateFingerprint.methodOrNull?.replaceInstruction(0, "return-void")
+        // Lấy an toàn method, nếu không tìm thấy sẽ thoát êm, không gây crash patcher
+        val targetMethod = inAppUpdaterConstructorFingerprint.methodOrNull ?: return@execute
+        
+        // Kiểm tra an toàn trước khi thay thế instruction ở index 1
+        if (targetMethod.instructions.size > 1) {
+            targetMethod.replaceInstruction(1, "return-void")
+        }
     }
 }
