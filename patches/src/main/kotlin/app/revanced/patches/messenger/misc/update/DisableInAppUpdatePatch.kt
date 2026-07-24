@@ -14,35 +14,16 @@ internal val inAppUpdateStringFingerprint = fingerprint {
 }
 
 @Suppress("unused")
-val disableInAppUpdatePatch = patch(
+val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables Messenger in-app updates comprehensively via safe manifest DOM modification and precise bytecode fingerprinting.",
+    description = "Disables Messenger in-app update checks precisely via targeted bytecode fingerprinting.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // 1. Tầng Manifest: Sử dụng DOM thuần túy (chuẩn an toàn Morphe) để vô hiệu hóa component, tránh hoàn toàn rác APKTOOL_DUMMYVAL
-        document("AndroidManifest.xml").use { document ->
-            val application = document.getElementsByTagName("application")
-                .item(0) as? Element ?: return@use
-
-            val children = application.childNodes
-            for (i in 0 until children.length) {
-                val child = children.item(i) as? Element ?: continue
-                val name = child.getAttribute("android:name") ?: continue
-
-                if (name == "com.facebook.messenger.app.update.InAppUpdater" || name.endsWith(".app.update.InAppUpdater")) {
-                    val tagName = child.tagName
-                    if (tagName == "receiver" || tagName == "service" || tagName == "activity" || tagName == "provider") {
-                        child.setAttribute("android:enabled", "false")
-                    }
-                }
-            }
-        }
-
-        // 2. Tầng Bytecode: Định vị chính xác phương thức qua Fingerprint để vô hiệu hóa logic ngầm bên trong
+        // Định vị chính xác phương thức qua Fingerprint để vô hiệu hóa logic ngầm bên trong
         val targetMethod = inAppUpdateStringFingerprint.method.toMutable()
-        
+
         when (targetMethod.returnType) {
             "V" -> {
                 targetMethod.replaceInstruction(0, "return-void")
