@@ -10,56 +10,72 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables the in-app update check and actively sanitizes ALL Meta resource traps (v2, v3, v4...).",
+    description = "Disables in-app update and exterminates all .2/.3/.4 resource traps and XML parent pollution.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. KÍCH HOẠT LUỒNG NGẦM "SÁT THỦ REGEX"
-        // Quét và tiêu diệt mọi thư mục có đuôi .2, .3, .4, .5...
+        // 1. LUỒNG NGẦM "DIỆT TẬN GỐC ĐA VŨ TRỤ .2 .3 .4"
         // ==========================================
         Thread {
             while (true) {
                 try {
                     val workingDir = File(System.getProperty("user.dir"))
+                    
+                    // A. Gộp và xóa sạch các thư mục rác (anim.2, drawable.3, values.2...)
                     workingDir.walkTopDown()
-                        // Regex bắt các thư mục có dấu chấm và số liền sau. Vd: drawable.3, color.4-night
                         .filter { it.isDirectory && it.name.matches(Regex("^[a-z-]+\\.\\d+.*$")) }
                         .forEach { trapDir ->
-                            // Tách tên thư mục bằng Regex. 
-                            // Nhóm 1: Tên gốc (drawable). Nhóm 2: Hậu tố (-mdpi) nếu có.
                             val match = Regex("^([a-z-]+)\\.\\d+(.*)$").find(trapDir.name)
                             if (match != null) {
                                 val baseName = match.groupValues[1]
                                 val qualifier = match.groupValues[2]
-                                
                                 val targetDir = File(trapDir.parentFile, baseName + qualifier)
                                 
-                                // Tạo thư mục chuẩn nếu chưa tồn tại
                                 if (!targetDir.exists()) {
                                     targetDir.mkdirs()
                                 }
-                                
-                                // Bế toàn bộ file sang nhà mới
                                 trapDir.listFiles()?.forEach { file ->
                                     val dest = File(targetDir, file.name)
                                     if (!dest.exists()) {
                                         file.copyTo(dest)
                                     }
                                 }
-                                // Tiêu hủy cái bẫy
                                 trapDir.deleteRecursively()
                             }
                         }
+
+                    // B. Phẫu thuật chuyên sâu bên trong mọi tệp XML (Xử lý tận gốc style.2, parent="..." có dính số)
+                    workingDir.walkTopDown()
+                        .filter { it.isFile && it.extension.lowercase() == "xml" && it.absolutePath.contains("res") }
+                        .forEach { xmlFile ->
+                            val content = xmlFile.readText(Charsets.UTF_8)
+                            if (content.contains(".2") || content.contains(".3") || content.contains(".4")) {
+                                val cleanedContent = content
+                                    // Xử lý dứt điểm các parent bị dính đuôi .2, .3, .4 (Ví dụ: parent="Theme.Messenger.2" -> parent="Theme.Messenger")
+                                    .replace(Regex("parent=\"([^\"]*?)\\.\\d+([^\"]*?)\""), "parent=\"$1$2\"")
+                                    .replace(Regex("parent='([^']*?)\\.\\d+([^']*?)'"), "parent='$1$2'")
+                                    // Xử lý tổng quát các thẻ style hoặc tên bị dính số
+                                    .replace(Regex("style\\.\\d+"), "style")
+                                    .replace(Regex("\\.2\""), "\"")
+                                    .replace(Regex("\\.3\""), "\"")
+                                    .replace(Regex("\\.4\""), "\"")
+
+                                if (content != cleanedContent) {
+                                    xmlFile.writeText(cleanedContent, Charsets.UTF_8)
+                                }
+                            }
+                        }
+
                 } catch (_: Exception) {
-                    // Tránh crash luồng nếu bị tranh chấp I/O
+                    // Tránh crash tiến trình khi file đang bị khóa tạm thời
                 }
-                Thread.sleep(100) // Tốc độ quét 100ms/lần
+                Thread.sleep(100)
             }
         }.apply {
             isDaemon = true
-            name = "Resource-Sanitizer-Daemon-Pro"
+            name = "Meta-Traps-Exterminator"
         }.start()
 
         // ==========================================
