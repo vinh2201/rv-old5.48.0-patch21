@@ -1,23 +1,34 @@
 package app.revanced.patches.messenger.misc.update
 
-import app.revanced.patcher.extensions.replaceInstruction
 import app.revanced.patcher.patch.bytecodePatch
+import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
+import com.android.tools.smali.dexlib2.mutable.MutableMethod
 
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disabe in-app update notification in Facebook Messenger.",
+    description = "Disable in-app update notification in Facebook Messenger.",
 ) {
     compatibleWith("com.facebook.orca")
 
-    apply {
-        // Tìm trực tiếp class InAppUpdater dựa trên đường dẫn không bị obfuscate
-        val targetClass = classes.find { it.name == "Lcom/facebook/messenger/app/update/InAppUpdater;" }
-        
-        // Tìm hàm khởi tạo (<init>) bên trong class đó
-        val targetMethod = targetClass?.methods?.find { it.name == "<init>" }
+    execute {
+        for (dexFile in dexFiles) {
+            for (classDef in dexFile.classes) {
+                if (classDef.type == "Lcom/facebook/messenger/app/update/InAppUpdater;") {
+                    val targetMethod = classDef.methods.find { it.name == "<init>" } as? MutableMethod
+                    val implementation = targetMethod?.implementation
 
-        // Index 0 giữ lại super.<init>(), Index 1 chèn return-void để ngắt toàn bộ chuỗi check update
-        targetMethod?.replaceInstruction(1, "return-void")
+                    if (implementation != null) {
+                        val instructions = implementation.instructions
+                        // Index 0 giữ lại lệnh super.<init>() để tránh lỗi VerifyError
+                        // Chèn return-void vào Index 1 để ngắt toàn bộ chuỗi khởi tạo updater phía sau
+                        if (instructions.size > 1) {
+                            instructions.add(1, BuilderInstruction10x(Opcode.RETURN_VOID))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
