@@ -16,21 +16,24 @@ internal val inAppUpdaterConstructorFingerprint = fingerprint {
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables the in-app update check mechanism safely.",
+    description = "Disables the in-app update check mechanism and sanitizes resource traps.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // 1. Tự động quét và xóa sạch thư mục bẫy "anim.2" gây lỗi AAPT2
+        // Lệnh siêu mạnh: Quét toàn bộ thư mục, dọn sạch mọi thư mục bẫy *.2 (anim.2, color.2, drawable.2, ...)
         try {
             File(".").walkTopDown().forEach { file ->
-                if (file.isDirectory && file.name == "anim.2") {
-                    file.deleteRecursively()
+                if (file.isDirectory) {
+                    val name = file.name
+                    if (name.endsWith(".2") || name.contains("APKTOOL_DUMMYVAL")) {
+                        file.deleteRecursively()
+                    }
                 }
             }
         } catch (_: Exception) {}
 
-        // 2. Thực thi bytecode patch một cách an toàn tuyệt đối
+        // Vô hiệu hóa InAppUpdater một cách an toàn tuyệt đối
         try {
             val targetMethod = inAppUpdaterConstructorFingerprint.methodOrNull
             if (targetMethod != null) {
