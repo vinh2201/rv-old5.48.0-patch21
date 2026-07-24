@@ -4,7 +4,6 @@ import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
 
-// Khóa cứng chính xác vào class InAppUpdater thực sự, không quét chuỗi linh tinh nữa
 internal val inAppUpdaterConstructorFingerprint = fingerprint {
     returns("V")
     custom { method, classDef ->
@@ -21,12 +20,7 @@ val disableInAppUpdatePatch = bytecodePatch(
     compatibleWith("com.facebook.orca")
 
     execute {
-        // Lấy an toàn method, nếu không tìm thấy sẽ thoát êm, không gây crash patcher
-        val targetMethod = inAppUpdaterConstructorFingerprint.methodOrNull ?: return@execute
-        
-        // Kiểm tra an toàn trước khi thay thế instruction ở index 1
-        if (targetMethod.instructions.size > 1) {
-            targetMethod.replaceInstruction(1, "return-void")
-        }
+        // Gọi trực tiếp extension hệt như cách patch ẩn quảng cáo hoạt động
+        inAppUpdaterConstructorFingerprint.methodOrNull?.replaceInstruction(1, "return-void")
     }
 }
