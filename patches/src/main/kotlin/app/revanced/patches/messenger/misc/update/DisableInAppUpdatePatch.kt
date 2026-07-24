@@ -1,6 +1,7 @@
 package app.revanced.patches.messenger.misc.update
 
-import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
+import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
+import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
 
 @Suppress("unused")
