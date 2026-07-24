@@ -10,13 +10,13 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables in-app update and aggressively strips conflicting explicit IDs and resource traps from public.xml.",
+    description = "Disables in-app update and systematically neutralizes all conflicting explicit ID declarations in public.xml.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. LUỒNG NGẦM "THANH TRỪNG PUBLIC.XML NÂNG CAO"
+        // 1. LUỒNG NGẦM "THANH TRỪNG GỐC RỄ PUBLIC.XML"
         // ==========================================
         Thread {
             while (true) {
@@ -32,18 +32,20 @@ val disableInAppUpdatePatch = bytecodePatch(
 
                     // B. Xóa sạch file dummy vật lý
                     workingDir.walkTopDown()
-                        .filter { it.isFile && (it.name.contains("APKTOOL_DUMMYVAL") || it.name.contains("AngryLoop")) }
+                        .filter { it.isFile && (it.name.contains("APKTOOL_DUMMYVAL") || it.name.contains("Angry")) }
                         .forEach { dummyFile ->
                             dummyFile.delete()
                         }
 
-                    // C. Lọc và xóa bỏ các dòng chứa APKTOOL_DUMMYVAL hoặc AngryLoop trong tệp public.xml
+                    // C. Lọc sạch tệp public.xml: Xóa bỏ mọi dòng có gán ID cứng (chứa từ khóa id="0x...")
+                    // Điều này giúp loại bỏ hoàn toàn bẫy xung đột ID của Meta mà không làm ảnh hưởng tài nguyên thật
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.lowercase() == "public.xml" }
                         .forEach { publicXml ->
                             val lines = publicXml.readLines(Charsets.UTF_8)
                             val filteredLines = lines.filter { line ->
-                                !line.contains("APKTOOL_DUMMYVAL") && !line.contains("AngryLoop")
+                                // Giữ lại cấu trúc thẻ mở/đóng, loại bỏ mọi dòng gán id tường minh gây xung đột
+                                !line.contains("id=\"0x") && !line.contains("id='0x")
                             }
                             if (lines.size != filteredLines.size) {
                                 publicXml.writeText(filteredLines.joinToString("\n"), Charsets.UTF_8)
@@ -75,7 +77,7 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }.apply {
             isDaemon = true
-            name = "Public-Xml-Annihilator"
+            name = "Public-Xml-Total-Sanitizer"
         }.start()
 
         // ==========================================
