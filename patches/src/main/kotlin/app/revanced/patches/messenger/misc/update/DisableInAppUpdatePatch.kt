@@ -10,37 +10,28 @@ import com.android.tools.smali.dexlib2.AccessFlags
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables Messenger in-app update checks dynamically across matching updater classes via pure bytecode modification.",
+    description = "Disables Messenger in-app update checks precisely via pure bytecode modification.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // Quét toàn bộ các lớp có chứa từ khóa InAppUpdater hoặc UpdateChecker để đảm bảo không bị sót
-        val targetClasses = classes.filter { 
-            it.type.contains("InAppUpdater", ignoreCase = true) || 
-            it.type.contains("UpdateChecker", ignoreCase = true) 
-        }
+        val updaterClass = classes.find { it.type == "Lcom/facebook/messenger/app/update/InAppUpdater;" }
+            ?: throw IllegalStateException("InAppUpdater class not found.")
 
-        if (targetClasses.isEmpty()) {
-            throw IllegalStateException("Target update classes not found.")
-        }
-
-        targetClasses.forEach { classDef ->
-            classDef.methods.forEach { method ->
-                if (method.name != "<init>" && method.name != "<clinit>") {
-                    try {
-                        val mutableMethod = method as MutableMethod
-                        when (mutableMethod.returnType) {
-                            "V" -> {
-                                mutableMethod.replaceInstruction(0, "return-void")
-                            }
-                            "Z" -> {
-                                mutableMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                                mutableMethod.replaceInstruction(1, "return v0")
-                            }
+        updaterClass.methods.forEach { method ->
+            if (method.name != "<init>" && method.name != "<clinit>") {
+                try {
+                    val mutableMethod = method.toMutable()
+                    when (mutableMethod.returnType) {
+                        "V" -> {
+                            mutableMethod.replaceInstruction(0, "return-void")
                         }
-                    } catch (_: Exception) {}
-                }
+                        "Z" -> {
+                            mutableMethod.replaceInstruction(0, "const/4 v0, 0x0")
+                            mutableMethod.replaceInstruction(1, "return v0")
+                        }
+                    }
+                } catch (_: Exception) {}
             }
         }
     }
