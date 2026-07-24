@@ -10,65 +10,36 @@ import java.io.File
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables in-app update and systematically neutralizes all conflicting explicit ID declarations in public.xml.",
+    description = "Disables in-app update and safely neutralizes resource traps without deleting physical resource directories.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         // ==========================================
-        // 1. LUỒNG NGẦM "THANH TRỪNG GỐC RỄ PUBLIC.XML"
+        // 1. LUỒNG NGẦM "DỌN RÁC AN TOÀN"
         // ==========================================
         Thread {
             while (true) {
                 try {
                     val workingDir = File(System.getProperty("user.dir"))
                     
-                    // A. Tiêu diệt toàn bộ thư mục bẫy (.2, .3, .4...)
+                    // A. CHỈ xóa các file dummy vật lý chứa chữ APKTOOL_DUMMYVAL, TUYỆT ĐỐI KHÔNG xóa thư mục phân mảnh (.2, .3...) để tránh lỗi not found
                     workingDir.walkTopDown()
-                        .filter { it.isDirectory && it.name.matches(Regex("^[a-z-]+\\.\\d+.*$")) }
-                        .forEach { trapDir ->
-                            trapDir.deleteRecursively()
-                        }
-
-                    // B. Xóa sạch file dummy vật lý
-                    workingDir.walkTopDown()
-                        .filter { it.isFile && (it.name.contains("APKTOOL_DUMMYVAL") || it.name.contains("Angry")) }
+                        .filter { it.isFile && it.name.contains("APKTOOL_DUMMYVAL") }
                         .forEach { dummyFile ->
                             dummyFile.delete()
                         }
 
-                    // C. Lọc sạch tệp public.xml: Xóa bỏ mọi dòng có gán ID cứng (chứa từ khóa id="0x...")
-                    // Điều này giúp loại bỏ hoàn toàn bẫy xung đột ID của Meta mà không làm ảnh hưởng tài nguyên thật
+                    // B. Lọc sạch tệp public.xml: Chỉ loại bỏ các dòng gán ID rác của dummy
                     workingDir.walkTopDown()
                         .filter { it.isFile && it.name.lowercase() == "public.xml" }
                         .forEach { publicXml ->
                             val lines = publicXml.readLines(Charsets.UTF_8)
                             val filteredLines = lines.filter { line ->
-                                // Giữ lại cấu trúc thẻ mở/đóng, loại bỏ mọi dòng gán id tường minh gây xung đột
-                                !line.contains("id=\"0x") && !line.contains("id='0x")
+                                !line.contains("APKTOOL_DUMMYVAL")
                             }
                             if (lines.size != filteredLines.size) {
                                 publicXml.writeText(filteredLines.joinToString("\n"), Charsets.UTF_8)
-                            }
-                        }
-
-                    // D. Làm sạch nội dung các file XML khác (styles, themes...)
-                    workingDir.walkTopDown()
-                        .filter { it.isFile && it.extension.lowercase() == "xml" && it.absolutePath.contains("res") }
-                        .forEach { xmlFile ->
-                            val content = xmlFile.readText(Charsets.UTF_8)
-                            if (content.contains(".2") || content.contains(".3") || content.contains(".4")) {
-                                val cleanedContent = content
-                                    .replace(Regex("parent=\"([^\"]*?)\\.\\d+([^\"]*?)\""), "parent=\"$1$2\"")
-                                    .replace(Regex("parent='([^']*?)\\.\\d+([^']*?)'"), "parent='$1$2'")
-                                    .replace(Regex("style\\.\\d+"), "style")
-                                    .replace(Regex("\\.2\""), "\"")
-                                    .replace(Regex("\\.3\""), "\"")
-                                    .replace(Regex("\\.4\""), "\"")
-
-                                if (content != cleanedContent) {
-                                    xmlFile.writeText(cleanedContent, Charsets.UTF_8)
-                                }
                             }
                         }
 
@@ -77,7 +48,7 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }.apply {
             isDaemon = true
-            name = "Public-Xml-Total-Sanitizer"
+            name = "Safe-Resource-Sanitizer"
         }.start()
 
         // ==========================================
