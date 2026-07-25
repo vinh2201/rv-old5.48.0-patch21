@@ -2,14 +2,23 @@ package app.revanced.patches.youtube.misc.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.fingerprint
+import app.revanced.patcher.fingerprint.legacyFingerprint
+import app.revanced.patcher.fingerprint.mutableClassOrThrow
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.patch.resourcePatch
 import app.revanced.patcher.util.proxy.mutableTypes.MutableClass
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.util.MethodUtil
+import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
+
+internal val appBlockingCheckResultToStringFingerprint = legacyFingerprint(
+    name = "appBlockingCheckResultToStringFingerprint",
+    returnType = "Ljava/lang/String;",
+    strings = listOf("AppBlockingCheckResult{intent=")
+)
 
 @Suppress("unused")
 val disableUpdateScreen = bytecodePatch(
@@ -20,29 +29,10 @@ val disableUpdateScreen = bytecodePatch(
     compatibleWith("com.google.android.youtube")
 
     execute {
-        // 1. Tìm class và ép kiểu nó sang MutableClass (Class có thể chỉnh sửa)
-        val targetClass = classes.firstOrNull { clazz ->
-            clazz.methods.any { method ->
-                method.returnType == "Ljava/lang/String;" &&
-                method.implementation?.instructions?.any { instr ->
-                    if (instr is ReferenceInstruction) {
-                        val ref = instr.reference
-                        ref is StringReference && ref.string == "AppBlockingCheckResult{intent="
-                    } else {
-                        false
-                    }
-                } == true
-            }
-        } as? MutableClass ?: throw IllegalStateException("Không tìm thấy class để Disable Update Screen")
-
-        // 2. Tìm Method và ép kiểu sang MutableMethod để dùng được hàm addInstructions
-        val methodToPatch = targetClass.methods.first { method ->
+        appBlockingCheckResultToStringFingerprint.mutableClassOrThrow().methods.first { method: Method ->
             MethodUtil.isConstructor(method) &&
-            method.parameterTypes.map { it.toString() }.toList() == listOf("Landroid/content/Intent;", "Z")
-        } as MutableMethod
-
-        // 3. Tiến hành chèn mã smali vô hiệu hóa
-        methodToPatch.addInstructions(
+                    method.parameterTypes.map { it.toString() } == listOf("Landroid/content/Intent;", "Z")
+        }.addInstructions(
             1,
             "const/4 p1, 0x0"
         )
