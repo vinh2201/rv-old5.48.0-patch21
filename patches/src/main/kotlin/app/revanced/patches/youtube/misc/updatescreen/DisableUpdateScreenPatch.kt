@@ -19,7 +19,7 @@ val disableUpdateScreen = bytecodePatch(
     compatibleWith("com.google.android.youtube")
 
     execute {
-        // 1. Tự động tìm Class chứa chuỗi
+        // 1. Tìm class và ép kiểu nó sang MutableClass (Class có thể chỉnh sửa)
         val targetClass = classes.firstOrNull { clazz ->
             clazz.methods.any { method ->
                 method.returnType == "Ljava/lang/String;" &&
@@ -32,13 +32,16 @@ val disableUpdateScreen = bytecodePatch(
                     }
                 } == true
             }
-        } ?: throw IllegalStateException("Không tìm thấy class để Disable Update Screen")
+        } as? MutableClass ?: throw IllegalStateException("Không tìm thấy class để Disable Update Screen")
 
-        // 2. Đã bỏ ép kiểu ": Method", Kotlin sẽ tự hiểu đây là MutableMethod để dùng được addInstructions
-        targetClass.methods.first { method ->
+        // 2. Tìm Method và ép kiểu sang MutableMethod để dùng được hàm addInstructions
+        val methodToPatch = targetClass.methods.first { method ->
             MethodUtil.isConstructor(method) &&
             method.parameterTypes.map { it.toString() }.toList() == listOf("Landroid/content/Intent;", "Z")
-        }.addInstructions(
+        } as MutableMethod
+
+        // 3. Tiến hành chèn mã smali vô hiệu hóa
+        methodToPatch.addInstructions(
             1,
             "const/4 p1, 0x0"
         )
