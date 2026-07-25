@@ -2,16 +2,10 @@ package app.revanced.patches.youtube.misc.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.patcher.fingerprint
-import app.revanced.patcher.fingerprint.method.impl.MethodFingerprint
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import com.android.tools.smali.dexlib2.iface.Method
-
-// Thay thế legacyFingerprint bằng API MethodFingerprint chuẩn của ReVanced
-internal object AppBlockingCheckResultToStringFingerprint : MethodFingerprint(
-    returnType = "Ljava/lang/String;",
-    strings = listOf("AppBlockingCheckResult{intent=")
-)
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
 @Suppress("unused")
 val disableUpdateScreen = bytecodePatch(
@@ -22,15 +16,25 @@ val disableUpdateScreen = bytecodePatch(
     compatibleWith("com.google.android.youtube")
 
     execute {
-        // 1. Lấy kết quả match của Fingerprint
-        val fingerprintResult = AppBlockingCheckResultToStringFingerprint.result 
-            ?: throw IllegalStateException("AppBlockingCheckResultToStringFingerprint not found")
+        // 1. Tự động tìm Class chứa chuỗi "AppBlockingCheckResult{intent=" (thay thế hoàn toàn cho Fingerprint cũ)
+        val targetClass = classes.firstOrNull { clazz ->
+            clazz.methods.any { method ->
+                method.returnType == "Ljava/lang/String;" &&
+                method.implementation?.instructions?.any { instr ->
+                    if (instr is ReferenceInstruction) {
+                        val ref = instr.reference
+                        ref is StringReference && ref.string == "AppBlockingCheckResult{intent="
+                    } else {
+                        false
+                    }
+                } == true
+            }
+        } ?: throw IllegalStateException("Không tìm thấy class để Disable Update Screen")
 
-        // 2. Tìm Constructor và Inject Code
-        fingerprintResult.mutableClass.methods.first { method: Method ->
+        // 2. Tìm đúng hàm Constructor và thêm mã smali để vô hiệu hóa
+        targetClass.methods.first { method: Method ->
             MethodUtil.isConstructor(method) &&
-                    // Sửa 'parameters' thành 'parameterTypes.toList()'
-                    method.parameterTypes.toList() == listOf("Landroid/content/Intent;", "Z")
+            method.parameterTypes.map { it.toString() }.toList() == listOf("Landroid/content/Intent;", "Z")
         }.addInstructions(
             1,
             "const/4 p1, 0x0"
