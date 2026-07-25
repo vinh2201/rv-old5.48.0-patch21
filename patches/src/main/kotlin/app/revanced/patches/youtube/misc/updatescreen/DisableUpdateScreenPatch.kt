@@ -2,17 +2,12 @@ package app.revanced.patches.youtube.misc.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.util.fingerprint.legacyFingerprint
-import app.revanced.util.fingerprint.mutableClassOrThrow
-import app.revanced.util.indexOfFirstInstructionReversed
+import app.revanced.patcher.fingerprint.method.impl.MethodFingerprint
 import com.android.tools.smali.dexlib2.util.MethodUtil
-import com.android.tools.smali.dexlib2.AccessFlags
-import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.Method
-import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 
-internal val appBlockingCheckResultToStringFingerprint = legacyFingerprint(
-    name = "appBlockingCheckResultToStringFingerprint",
+// Thay thế legacyFingerprint bằng API MethodFingerprint chuẩn của ReVanced
+internal object AppBlockingCheckResultToStringFingerprint : MethodFingerprint(
     returnType = "Ljava/lang/String;",
     strings = listOf("AppBlockingCheckResult{intent=")
 )
@@ -26,9 +21,15 @@ val disableUpdateScreen = bytecodePatch(
     compatibleWith("com.google.android.youtube")
 
     execute {
-        appBlockingCheckResultToStringFingerprint.mutableClassOrThrow().methods.first { method ->
+        // 1. Lấy kết quả match của Fingerprint
+        val fingerprintResult = AppBlockingCheckResultToStringFingerprint.result 
+            ?: throw IllegalStateException("AppBlockingCheckResultToStringFingerprint not found")
+
+        // 2. Tìm Constructor và Inject Code
+        fingerprintResult.mutableClass.methods.first { method: Method ->
             MethodUtil.isConstructor(method) &&
-                    method.parameters == listOf("Landroid/content/Intent;", "Z")
+                    // Sửa 'parameters' thành 'parameterTypes.toList()'
+                    method.parameterTypes.toList() == listOf("Landroid/content/Intent;", "Z")
         }.addInstructions(
             1,
             "const/4 p1, 0x0"
