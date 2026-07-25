@@ -1,9 +1,12 @@
 package app.revanced.patches.youtube.misc.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
+import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patcher.patch.resourcePatch
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.util.MethodUtil
-import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
@@ -16,7 +19,7 @@ val disableUpdateScreen = bytecodePatch(
     compatibleWith("com.google.android.youtube")
 
     execute {
-        // 1. Tự động tìm Class chứa chuỗi "AppBlockingCheckResult{intent=" (thay thế hoàn toàn cho Fingerprint cũ)
+        // 1. Tự động tìm Class chứa chuỗi
         val targetClass = classes.firstOrNull { clazz ->
             clazz.methods.any { method ->
                 method.returnType == "Ljava/lang/String;" &&
@@ -31,8 +34,8 @@ val disableUpdateScreen = bytecodePatch(
             }
         } ?: throw IllegalStateException("Không tìm thấy class để Disable Update Screen")
 
-        // 2. Tìm đúng hàm Constructor và thêm mã smali để vô hiệu hóa
-        targetClass.methods.first { method: Method ->
+        // 2. Đã bỏ ép kiểu ": Method", Kotlin sẽ tự hiểu đây là MutableMethod để dùng được addInstructions
+        targetClass.methods.first { method ->
             MethodUtil.isConstructor(method) &&
             method.parameterTypes.map { it.toString() }.toList() == listOf("Landroid/content/Intent;", "Z")
         }.addInstructions(
