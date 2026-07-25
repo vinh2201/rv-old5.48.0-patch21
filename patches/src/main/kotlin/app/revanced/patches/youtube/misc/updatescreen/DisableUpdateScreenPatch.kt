@@ -2,16 +2,9 @@ package app.revanced.patches.youtube.misc.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.util.fingerprint.legacyFingerprint
+import app.revanced.patches.youtube.misc.appBlockingCheckResultToStringFingerprint
 import app.revanced.util.fingerprint.mutableClassOrThrow
 import com.android.tools.smali.dexlib2.util.MethodUtil
-
-
-internal val appBlockingCheckResultToStringFingerprint = legacyFingerprint(
-    name = "appBlockingCheckResultToStringFingerprint",
-    returnType = "Ljava/lang/String;",
-    strings = listOf("AppBlockingCheckResult{intent=")
-)
 
 val disableUpdateScreen = bytecodePatch(
     name = "Disable update screen",
