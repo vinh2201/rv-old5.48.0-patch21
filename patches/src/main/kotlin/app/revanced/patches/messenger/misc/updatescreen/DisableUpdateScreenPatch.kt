@@ -6,7 +6,7 @@ import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 
 internal val inAppUpdateStringFingerprint = fingerprint {
-    strings("InAppUpdater.checkUpdateAvailability")
+    strings("InAppUpdater")
 }
 
 @Suppress("unused")
