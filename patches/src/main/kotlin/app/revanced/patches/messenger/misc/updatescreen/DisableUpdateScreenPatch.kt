@@ -9,6 +9,7 @@ import app.revanced.util.returnEarly
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 
 @Suppress("unused")
 val disableUpdateScreenPatch = bytecodePatch(
@@ -19,6 +20,8 @@ val disableUpdateScreenPatch = bytecodePatch(
 
     execute {
         val method = findInAppUpdaterFingerprint.method
+
+	val targetClass = methodRef.definingClass
  
         // Find the ads free string index
         val stringIndex = findInAppUpdaterFingerprint.stringMatches!!.first().index
@@ -27,7 +30,7 @@ val disableUpdateScreenPatch = bytecodePatch(
         val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.INVOKE_STATIC }
 
         // Get the class name from the TypeReference
-        val targetClass = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as TypeReference
+        val methodRef = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as MethodReference
 
         // Patch the ads-free method to always return true
         fingerprint {
@@ -36,6 +39,6 @@ val disableUpdateScreenPatch = bytecodePatch(
             custom { method, classDef ->
                 classDef == targetClass
             }
-        }.method.returnEarly(1)
+        }.method.returnEarly()
     }
 }
