@@ -1,42 +1,34 @@
-package app.revanced.patches.messenger.misc.updatescreen
+package app.revanced.patches.messenger.misc.updatescreen // Đảm bảo đúng package của bạn
 
-import app.revanced.patcher.extensions.InstructionExtensions.getInstruction
+import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.revanced.patcher.fingerprint
-import app.revanced.patcher.patch.PatchException
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.util.indexOfFirstInstructionReversedOrThrow
-import app.revanced.util.returnEarly
-import com.android.tools.smali.dexlib2.Opcode
-import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
-import com.android.tools.smali.dexlib2.iface.reference.TypeReference
-import com.android.tools.smali.dexlib2.iface.reference.MethodReference
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
+
+// Định nghĩa fingerprint quét chuỗi nhận diện độc quyền của tiến trình check update
+internal val inAppUpdateStringFingerprint = fingerprint {
+    strings("InAppUpdater#checkUpdateAvailability")
+}
 
 @Suppress("unused")
-val disableUpdateScreenPatch = bytecodePatch(
+val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables Messenger in-app update checks.",
+    description = "Disables Messenger in-app update checks precisely via targeted bytecode fingerprinting.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        val method = findInAppUpdaterFingerprint.method
- 
-        // Find the ads free string index
-        val stringIndex = findInAppUpdaterFingerprint.stringMatches!!.first().index
+        // Định vị chính xác phương thức qua Fingerprint để vô hiệu hóa logic ngầm bên trong
+        val targetMethod = inAppUpdateStringFingerprint.method.toMutable()
 
-        // Search backwards from the string to find the `new-instance` (TypeReference) instruction
-        val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.INVOKE_STATIC }
-
-        // Get the class name from the TypeReference
-        val targetClass = (method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as MethodReference).definingClass
-
-        // Patch the ads-free method to always return true
-        fingerprint {
-            returns("V")
-            parameters()
-            custom { method, classDef ->
-                classDef == targetClass
+        when (targetMethod.returnType) {
+            "V" -> {
+                targetMethod.replaceInstruction(0, "return-void")
             }
-        }.method.returnEarly()
+            "Z" -> {
+                targetMethod.replaceInstruction(0, "const/4 v0, 0x0")
+                targetMethod.replaceInstruction(1, "return v0")
+            }
+        }
     }
 }
