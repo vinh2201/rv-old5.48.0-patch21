@@ -1,6 +1,6 @@
 package app.revanced.patches.messenger.misc.updatescreen
 
-import app.revanced.patcher.extensions.InstructionExtensions.replaceInstruction
+import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
@@ -20,38 +20,30 @@ internal val linkUpgradeVersionFingerprint = fingerprint {
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables Messenger in-app update checks, call upgrade screens, and Armadillo upgrade blockers.",
+    description = "Forces update checks and upgrade blockers to return false immediately.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // 1. Chặn cờ yêu cầu nâng cấp phiên bản chung (versionUpgradeRequired)
-        val versionUpgradeMethod = versionUpgradeRequiredFingerprint.method.toMutable()
-        when (versionUpgradeMethod.returnType) {
-            "V" -> versionUpgradeMethod.replaceInstruction(0, "return-void")
-            "Z" -> {
-                versionUpgradeMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                versionUpgradeMethod.replaceInstruction(1, "return v0")
-            }
-        }
+        val targets = listOf(
+            versionUpgradeRequiredFingerprint,
+            armadilloUpgradeBlockerFingerprint,
+            linkUpgradeVersionFingerprint
+        )
 
-        // 2. Chặn màn hình khóa/chặn nâng cấp Armadillo (E2EE chats)
-        val armadilloBlockerMethod = armadilloUpgradeBlockerFingerprint.method.toMutable()
-        when (armadilloBlockerMethod.returnType) {
-            "V" -> armadilloBlockerMethod.replaceInstruction(0, "return-void")
-            "Z" -> {
-                armadilloBlockerMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                armadilloBlockerMethod.replaceInstruction(1, "return v0")
-            }
-        }
-
-        // 3. Chặn kiểm tra phiên bản nâng cấp trong giao diện gọi thoại/videocall (Lobby)
-        val linkUpgradeMethod = linkUpgradeVersionFingerprint.method.toMutable()
-        when (linkUpgradeMethod.returnType) {
-            "V" -> linkUpgradeMethod.replaceInstruction(0, "return-void")
-            "Z" -> {
-                linkUpgradeMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                linkUpgradeMethod.replaceInstruction(1, "return v0")
+        for (target in targets) {
+            val method = target.method.toMutable()
+            when (method.returnType) {
+                "V" -> method.addInstructions(0, "return-void")
+                "Z", "I" -> {
+                    method.addInstructions(
+                        0,
+                        """
+                        const/4 v0, 0x0
+                        return v0
+                        """
+                    )
+                }
             }
         }
     }
