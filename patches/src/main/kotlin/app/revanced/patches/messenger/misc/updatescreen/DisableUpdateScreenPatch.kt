@@ -5,82 +5,33 @@ import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import app.revanced.patcher.fingerprint
 
-// 1. Chộp lấy các hàm check version và cờ chặn cốt lõi
+// Chộp lấy chính xác method chứa cờ kiểm tra version thông qua chuỗi log
 internal val versionUpgradeRequiredFingerprint = fingerprint {
     strings("Setting versionUpgradeRequired = ")
-}
-
-internal val armadilloUpgradeBlockerFingerprint = fingerprint {
-    strings("armadillo_app_upgrade_screen_blocker")
-}
-
-internal val linkUpgradeVersionFingerprint = fingerprint {
-    strings("link_upgrade_version")
 }
 
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Forces upgrade check flags to return false and forces upgrade blocker activity to return RESULT_OK and exit instantly.",
+    description = "Forces the version upgrade check to return false, preventing the update wall from appearing without touching RTC or call features.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // --- MŨI 1: Ép toàn bộ các hàm kiểm tra update trả về false (0) ---
-        val targets = listOf(
-            versionUpgradeRequiredFingerprint,
-            armadilloUpgradeBlockerFingerprint,
-            linkUpgradeVersionFingerprint
-        )
+        // --- CHỈ TẬP TRUNG TẤN CÔNG GỐC RỄ: Ép hàm check version trả về false (0) ---
+        val versionMethod = versionUpgradeRequiredFingerprint.method?.toMutable()
+            ?: throw IllegalStateException("Không tìm thấy phương thức kiểm tra phiên bản (versionUpgradeRequired)!")
 
-        for (target in targets) {
-            val method = target.method.toMutable()
-            when (method.returnType) {
-                "V" -> method.addInstructions(0, "return-void")
-                "Z", "I" -> {
-                    method.addInstructions(
-                        0,
-                        """
-                        const/4 v0, 0x0
-                        return v0
-                        """
-                    )
-                }
-            }
-        }
-
-        // --- MŨI 2: Đấm chết tươi Activity MsgrRUPBlockActivity, hỗ trợ bắt chéo hàm ---
-        val targetActivityClass = "Lcom/facebook/rtc/activities/upgradepolicy/msgr/MsgrRUPBlockActivity;"
-        val activityClass = classes.firstOrNull { it.type == targetActivityClass }
-
-        if (activityClass != null) {
-            // Đổi chiến thuật: Quét theo parameters và returnType của ReVanced API
-            val targetMethod = activityClass.methods.firstOrNull { 
-                // 1. Vẫn thử tìm tên cũ (đề phòng bản cũ)
-                it.name == "onCreate" || it.name == "A2r" || 
-                // 2. Tìm hàm custom onCreate của Meta (nhận vào đúng 1 tham số Bundle và trả về Void)
-                (it.parameters == listOf("Landroid/os/Bundle;") && it.returnType == "V")
-            }?.toMutable() 
-            // 3. Vớt mẻ cuối: Lấy hàm đầu tiên không phải constructor, không nhận tham số và trả về Void (thường là onResume/onStart)
-            ?: activityClass.methods.firstOrNull { 
-                it.name != "<init>" && it.name != "<clinit>" && it.parameters.isEmpty() && it.returnType == "V" 
-            }?.toMutable()
-
-            if (targetMethod != null) {
-                targetMethod.addInstructions(
-                    0,
-                    """
-                    const/4 v0, -0x1
-                    invoke-virtual {p0, v0}, Landroid/app/Activity;->setResult(I)V
-                    invoke-virtual {p0}, Landroid/app/Activity;->finish()V
-                    return-void
-                    """
-                )
-            } else {
-                throw IllegalStateException("Quá đen! Không tìm thấy bất kỳ hàm hợp lệ nào để inject trong MsgrRUPBlockActivity!")
-            }
+        if (versionMethod.returnType == "Z") {
+            versionMethod.addInstructions(
+                0,
+                """
+                const/4 v0, 0x0
+                return v0
+                """
+            )
         } else {
-            throw IllegalStateException("Không tìm thấy class $targetActivityClass để patch màn hình update!")
+            throw IllegalStateException("Kiểu trả về của phương thức kiểm tra phiên bản không phải là boolean (Z)!")
         }
     }
 }
