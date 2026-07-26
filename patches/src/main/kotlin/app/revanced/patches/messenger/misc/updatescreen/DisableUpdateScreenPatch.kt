@@ -24,7 +24,7 @@ val disableUpdateScreenPatch = bytecodePatch(
         val stringIndex = findInAppUpdaterFingerprint.stringMatches!!.first().index
 
         // Search backwards from the string to find the `new-instance` (TypeReference) instruction
-        val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.NEW_INSTANCE }
+        val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.INVOKE_STATIC }
 
         // Get the class name from the TypeReference
         val targetClass = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as TypeReference
