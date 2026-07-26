@@ -5,39 +5,53 @@ import app.revanced.patcher.fingerprint
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 
-internal val inAppUpdaterTimestampFingerprint = fingerprint {
-    strings("appupdater_timestamp")
+internal val versionUpgradeRequiredFingerprint = fingerprint {
+    strings("Setting versionUpgradeRequired = ")
 }
 
-internal val inAppUpdateListenerFingerprint = fingerprint {
-    strings("AppUpdateInfo Listener Failed")
+internal val armadilloUpgradeBlockerFingerprint = fingerprint {
+    strings("armadillo_app_upgrade_screen_blocker")
+}
+
+internal val linkUpgradeVersionFingerprint = fingerprint {
+    strings("link_upgrade_version")
 }
 
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Disables Messenger in-app update checks and listener triggers.",
+    description = "Disables Messenger in-app update checks, call upgrade screens, and Armadillo upgrade blockers.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        // Vô hiệu hóa hàm kiểm tra/xử lý mốc thời gian cập nhật
-        val timestampMethod = inAppUpdaterTimestampFingerprint.method.toMutable()
-        when (timestampMethod.returnType) {
-            "V" -> timestampMethod.replaceInstruction(0, "return-void")
+        // 1. Chặn cờ yêu cầu nâng cấp phiên bản chung (versionUpgradeRequired)
+        val versionUpgradeMethod = versionUpgradeRequiredFingerprint.method.toMutable()
+        when (versionUpgradeMethod.returnType) {
+            "V" -> versionUpgradeMethod.replaceInstruction(0, "return-void")
             "Z" -> {
-                timestampMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                timestampMethod.replaceInstruction(1, "return v0")
+                versionUpgradeMethod.replaceInstruction(0, "const/4 v0, 0x0")
+                versionUpgradeMethod.replaceInstruction(1, "return v0")
             }
         }
 
-        // Vô hiệu hóa bộ lắng nghe thông tin cập nhật (InAppUpdate listener)
-        val listenerMethod = inAppUpdateListenerFingerprint.method.toMutable()
-        when (listenerMethod.returnType) {
-            "V" -> listenerMethod.replaceInstruction(0, "return-void")
+        // 2. Chặn màn hình khóa/chặn nâng cấp Armadillo (E2EE chats)
+        val armadilloBlockerMethod = armadilloUpgradeBlockerFingerprint.method.toMutable()
+        when (armadilloBlockerMethod.returnType) {
+            "V" -> armadilloBlockerMethod.replaceInstruction(0, "return-void")
             "Z" -> {
-                listenerMethod.replaceInstruction(0, "const/4 v0, 0x0")
-                listenerMethod.replaceInstruction(1, "return v0")
+                armadilloBlockerMethod.replaceInstruction(0, "const/4 v0, 0x0")
+                armadilloBlockerMethod.replaceInstruction(1, "return v0")
+            }
+        }
+
+        // 3. Chặn kiểm tra phiên bản nâng cấp trong giao diện gọi thoại/videocall (Lobby)
+        val linkUpgradeMethod = linkUpgradeVersionFingerprint.method.toMutable()
+        when (linkUpgradeMethod.returnType) {
+            "V" -> linkUpgradeMethod.replaceInstruction(0, "return-void")
+            "Z" -> {
+                linkUpgradeMethod.replaceInstruction(0, "const/4 v0, 0x0")
+                linkUpgradeMethod.replaceInstruction(1, "return v0")
             }
         }
     }
