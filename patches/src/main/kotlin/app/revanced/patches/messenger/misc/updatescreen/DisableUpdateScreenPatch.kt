@@ -21,7 +21,7 @@ internal val linkUpgradeVersionFingerprint = fingerprint {
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Forces upgrade check flags to return false and kills upgrade blockers instantly.",
+    description = "Forces upgrade check flags to return false and forces upgrade blocker activity to return RESULT_OK and exit instantly.",
 ) {
     compatibleWith("com.facebook.orca")
 
@@ -49,19 +49,23 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }
 
-        // --- MŨI 2: Đấm chết tươi Activity MsgrRUPBlockActivity nếu nó cố lú đầu lên ---
+        // --- MŨI 2: Đấm chết tươi Activity MsgrRUPBlockActivity, ép trả về RESULT_OK (-1) để giữ nguyên luồng gọi điện ---
         val targetActivityClass = "Lcom/facebook/rtc/activities/upgradepolicy/msgr/MsgrRUPBlockActivity;"
         val activityClass = classes.firstOrNull { it.type == targetActivityClass }
-        
+
         if (activityClass != null) {
             val onCreateMethod = activityClass.methods.firstOrNull { it.name == "onCreate" }?.toMutable()
             onCreateMethod?.addInstructions(
                 0,
                 """
+                const/4 v0, -0x1
+                invoke-virtual {p0, v0}, Landroid/app/Activity;->setResult(I)V
                 invoke-virtual {p0}, Landroid/app/Activity;->finish()V
                 return-void
                 """
             )
+        } else {
+            throw IllegalStateException("Không tìm thấy class $targetActivityClass để patch màn hình update!")
         }
     }
 }
