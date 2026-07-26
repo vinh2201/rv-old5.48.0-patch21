@@ -49,21 +49,28 @@ val disableInAppUpdatePatch = bytecodePatch(
             }
         }
 
-        // --- MŨI 2: Đấm chết tươi Activity MsgrRUPBlockActivity, ép trả về RESULT_OK (-1) để giữ nguyên luồng gọi điện ---
+        // --- MŨI 2: Đấm chết tươi Activity MsgrRUPBlockActivity, hỗ trợ bắt chéo hàm ---
         val targetActivityClass = "Lcom/facebook/rtc/activities/upgradepolicy/msgr/MsgrRUPBlockActivity;"
         val activityClass = classes.firstOrNull { it.type == targetActivityClass }
 
         if (activityClass != null) {
-            val onCreateMethod = activityClass.methods.firstOrNull { it.name == "onCreate" }?.toMutable()
-            onCreateMethod?.addInstructions(
-                0,
-                """
-                const/4 v0, -0x1
-                invoke-virtual {p0, v0}, Landroid/app/Activity;->setResult(I)V
-                invoke-virtual {p0}, Landroid/app/Activity;->finish()V
-                return-void
-                """
-            )
+            // Săn tìm hàm A2r (bản mới) hoặc onCreate (bản cũ)
+            val targetMethod = activityClass.methods.firstOrNull { it.name == "A2r" || it.name == "onCreate" }?.toMutable()
+            
+            if (targetMethod != null) {
+                targetMethod.addInstructions(
+                    0,
+                    """
+                    const/4 v0, -0x1
+                    invoke-virtual {p0, v0}, Landroid/app/Activity;->setResult(I)V
+                    invoke-virtual {p0}, Landroid/app/Activity;->finish()V
+                    return-void
+                    """
+                )
+            } else {
+                // Phải ném lỗi đỏ lòm ra để biết Meta đã đổi tên hàm thành gì khác
+                throw IllegalStateException("Không tìm thấy hàm A2r hay onCreate trong MsgrRUPBlockActivity!")
+            }
         } else {
             throw IllegalStateException("Không tìm thấy class $targetActivityClass để patch màn hình update!")
         }
