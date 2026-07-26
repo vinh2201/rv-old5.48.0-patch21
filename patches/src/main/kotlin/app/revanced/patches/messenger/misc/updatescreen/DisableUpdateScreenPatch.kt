@@ -20,8 +20,6 @@ val disableUpdateScreenPatch = bytecodePatch(
 
     execute {
         val method = findInAppUpdaterFingerprint.method
-
-	val targetClass = methodRef.definingClass
  
         // Find the ads free string index
         val stringIndex = findInAppUpdaterFingerprint.stringMatches!!.first().index
@@ -30,7 +28,7 @@ val disableUpdateScreenPatch = bytecodePatch(
         val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.INVOKE_STATIC }
 
         // Get the class name from the TypeReference
-        val methodRef = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as MethodReference
+        val targetClass = (method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as MethodReference).definingClass
 
         // Patch the ads-free method to always return true
         fingerprint {
