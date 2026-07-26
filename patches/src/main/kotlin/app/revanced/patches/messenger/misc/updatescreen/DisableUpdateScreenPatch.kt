@@ -1,36 +1,41 @@
 package app.revanced.patches.messenger.misc.updatescreen
 
-import app.revanced.patcher.patch.resourcePatch
-import org.w3c.dom.Element
+import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
+import app.revanced.patcher.fingerprint
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 
+// Không cần dùng chuỗi dài ngoằng, chúng ta chĩa thẳng vào tên class của Activity
 @Suppress("unused")
-val disableInAppUpdatePatch = resourcePatch(
+val disableInAppUpdatePatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Blocks the update screen during calls by disabling the MsgrRUPBlockActivity in AndroidManifest.",
+    description = "Forces the upgrade blocker activity to finish immediately.",
 ) {
     compatibleWith("com.facebook.orca")
 
-    finalize {
-        document("AndroidManifest.xml").use { document ->
-            // Lấy danh sách toàn bộ các thẻ <activity> trong Manifest
-            val activities = document.getElementsByTagName("activity")
+    execute {
+        // Tên class chính xác của cái UI chặn cuộc gọi
+        val targetActivityClass = "Lcom/facebook/rtc/activities/upgradepolicy/msgr/MsgrRUPBlockActivity;"
+        
+        // Tìm class này trong bộ mã Smali
+        val activityClass = classes.firstOrNull { it.type == targetActivityClass }
+        
+        if (activityClass != null) {
+            // Tìm hàm onCreate của Activity này
+            val onCreateMethod = activityClass.methods.firstOrNull { it.name == "onCreate" }?.toMutable()
             
-            for (i in 0 until activities.length) {
-                val activity = activities.item(i) as Element
-                val activityName = activity.getAttribute("android:name")
-                
-                // Chỉ điểm đúng thủ phạm chặn cuộc gọi
-                if (activityName == "com.facebook.rtc.activities.upgradepolicy.msgr.MsgrRUPBlockActivity") {
-                    // Chốt hạ: Vô hiệu hóa hoàn toàn Activity này
-                    activity.setAttribute("android:enabled", "false")
-                    
-                    // Ép thêm phát nữa: Rút luôn quyền gọi từ bên ngoài (nếu có)
-                    if (activity.hasAttribute("android:exported")) {
-                        activity.setAttribute("android:exported", "false")
-                    }
-                    
-                    break // Tóm được rồi thì ngắt vòng lặp cho nhẹ build
-                }
+            if (onCreateMethod != null) {
+                // Chèn lệnh gọi hàm finish() ngay dòng đầu tiên của onCreate
+                // v0 = p0 (biến this của Activity), gọi this.finish() sau đó return void
+                onCreateMethod.addInstructions(
+                    0,
+                    """
+                    invoke-virtual {p0}, Landroid/app/Activity;->finish()V
+                    return-void
+                    """
+                )
             }
         }
     }
