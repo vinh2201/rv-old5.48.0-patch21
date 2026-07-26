@@ -54,9 +54,18 @@ val disableInAppUpdatePatch = bytecodePatch(
         val activityClass = classes.firstOrNull { it.type == targetActivityClass }
 
         if (activityClass != null) {
-            // Săn tìm hàm A2r (bản mới) hoặc onCreate (bản cũ)
-            val targetMethod = activityClass.methods.firstOrNull { it.name == "A2r" || it.name == "onCreate" }?.toMutable()
-            
+            // Đổi chiến thuật: Quét theo signature thay vì tên cứng
+            val targetMethod = activityClass.methods.firstOrNull { 
+                // 1. Vẫn thử tìm tên cũ (đề phòng bản cũ)
+                it.name == "onCreate" || it.name == "A2r" || 
+                // 2. Tìm hàm custom onCreate của Meta (nhận vào 1 tham số Bundle)
+                it.descriptor == "(Landroid/os/Bundle;)V" 
+            }?.toMutable() 
+            // 3. Vớt mẻ cuối: Lấy hàm đầu tiên không phải constructor, không nhận tham số và trả về Void (thường là onResume/onStart)
+            ?: activityClass.methods.firstOrNull { 
+                it.name != "<init>" && it.name != "<clinit>" && it.descriptor == "()V" 
+            }?.toMutable()
+
             if (targetMethod != null) {
                 targetMethod.addInstructions(
                     0,
@@ -68,8 +77,7 @@ val disableInAppUpdatePatch = bytecodePatch(
                     """
                 )
             } else {
-                // Phải ném lỗi đỏ lòm ra để biết Meta đã đổi tên hàm thành gì khác
-                throw IllegalStateException("Không tìm thấy hàm A2r hay onCreate trong MsgrRUPBlockActivity!")
+                throw IllegalStateException("Quá đen! Không tìm thấy bất kỳ hàm hợp lệ nào để inject trong MsgrRUPBlockActivity!")
             }
         } else {
             throw IllegalStateException("Không tìm thấy class $targetActivityClass để patch màn hình update!")
