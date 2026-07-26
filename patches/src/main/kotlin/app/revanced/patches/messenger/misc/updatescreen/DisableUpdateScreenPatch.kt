@@ -54,16 +54,16 @@ val disableInAppUpdatePatch = bytecodePatch(
         val activityClass = classes.firstOrNull { it.type == targetActivityClass }
 
         if (activityClass != null) {
-            // Đổi chiến thuật: Quét theo signature thay vì tên cứng
+            // Đổi chiến thuật: Quét theo parameters và returnType của ReVanced API
             val targetMethod = activityClass.methods.firstOrNull { 
                 // 1. Vẫn thử tìm tên cũ (đề phòng bản cũ)
                 it.name == "onCreate" || it.name == "A2r" || 
-                // 2. Tìm hàm custom onCreate của Meta (nhận vào 1 tham số Bundle)
-                it.descriptor == "(Landroid/os/Bundle;)V" 
+                // 2. Tìm hàm custom onCreate của Meta (nhận vào đúng 1 tham số Bundle và trả về Void)
+                (it.parameters == listOf("Landroid/os/Bundle;") && it.returnType == "V")
             }?.toMutable() 
             // 3. Vớt mẻ cuối: Lấy hàm đầu tiên không phải constructor, không nhận tham số và trả về Void (thường là onResume/onStart)
             ?: activityClass.methods.firstOrNull { 
-                it.name != "<init>" && it.name != "<clinit>" && it.descriptor == "()V" 
+                it.name != "<init>" && it.name != "<clinit>" && it.parameters.isEmpty() && it.returnType == "V" 
             }?.toMutable()
 
             if (targetMethod != null) {
