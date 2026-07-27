@@ -7,7 +7,7 @@ import app.revanced.patcher.fingerprint
 
 // 1. Chộp lấy class quản lý cập nhật InAppUpdater cốt lõi
 internal val inAppUpdaterFingerprint = fingerprint {
-    strings("InAppUpdater.checkUpdateAvailability")
+    strings("InAppUpdater.checkUpdateAvailability", "inAppUpdater", "InAppUpdater", "InAppUpdate", "com.facebook.messenger.app.update.InAppUpdater", "com.facebook.messenger.app.update.InAppUpdater.Companion", "com.facebook.messenger.app.update.InAppUpdater#checkUpdateAvailability", "rtc_upgrade_policy_deprecated_version")
 }
 
 // 2. Chộp lấy rào cản RTC (kẻ bóp chết cuộc gọi)
