@@ -1,49 +1,74 @@
 package app.revanced.patches.messenger.misc.updatescreen
 
-import app.revanced.patcher.extensions.InstructionExtensions.getInstruction
-import app.revanced.patcher.fingerprint
-import app.revanced.patcher.patch.PatchException
+import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.util.indexOfFirstInstructionReversedOrThrow
-import app.revanced.util.returnEarly
-import com.android.tools.smali.dexlib2.Opcode
-import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
-import com.android.tools.smali.dexlib2.iface.reference.TypeReference
+import app.revanced.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
+import app.revanced.patcher.fingerprint
+
+// 1. Chộp lấy class quản lý cập nhật InAppUpdater cốt lõi
+internal val inAppUpdaterFingerprint = fingerprint {
+    strings("InAppUpdater.checkUpdateAvailability")
+}
+
+// 2. Chộp lấy rào cản RTC (kẻ bóp chết cuộc gọi)
+internal val rtcUpgradePolicyFingerprint = fingerprint {
+    strings("rtc_upgrade_policy_deprecated_version")
+}
+
+// 3. Giữ lại chốt chặn cũ như một lớp bảo vệ phụ
+internal val versionUpgradeRequiredFingerprint = fingerprint {
+    strings("Setting versionUpgradeRequired = ")
+}
 
 @Suppress("unused")
-val hideAdsPatch = bytecodePatch(
-    name = "Disable in-app update",
-    description = "Forces the version upgrade check to return false dynamically.",
+val disableInAppUpdatePatch = bytecodePatch(
+    name = "Disable in-app update and RTC wall",
+    description = "Forces all version upgrade checks and RTC update policies to return false, preventing the update wall without breaking the call flow.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
-        val method = findUpdateStringFingerprint.method
- 
-        // 1. Tìm index của chuỗi rtc_upgrade_policy_deprecated_version
-        val stringIndex = findUpdateStringFingerprint.stringMatches!!.first().index
-
-        // 2. Dò ngược để tìm lệnh new-instance
-        val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.NEW_INSTANCE }
-
-        // 3. Lấy tham chiếu của class mục tiêu
-        val targetClass = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as TypeReference
-
-        // 4. Mở rộng vùng nhận diện (Fingerprint) thay vì fix cứng returns("I")
-        val targetUpdateMethod = fingerprint {
-            custom { m, classDef ->
-                // Kiểm tra đúng class, hàm không có tham số và thuộc 1 trong 3 kiểu trả về
-                classDef.type == targetClass.type && 
-                m.parameters.isEmpty() && 
-                (m.returnType == "I" || m.returnType == "Z" || m.returnType == "V")
+        // --- TẤN CÔNG 1: Vô hiệu hoá logic checkUpdateAvailability ---
+        val updaterMethod = inAppUpdaterFingerprint.method?.toMutable()
+        if (updaterMethod != null) {
+            // Ép hàm trả về false (0) hoặc return void ngay lập tức tuỳ vào kiểu trả về
+            val returnInstruction = if (updaterMethod.returnType == "Z") {
+                """
+                const/4 v0, 0x0
+                return v0
+                """
+            } else {
+                "return-void"
             }
-        }.method
+            updaterMethod.addInstructions(0, returnInstruction)
+        }
 
-        // 5. Cấu trúc điều kiện để patch giá trị trả về tương ứng với cấu trúc của app
-        when (targetUpdateMethod.returnType) {
-            "V" -> targetUpdateMethod.returnEarly()         // Void: Không trả về gì cả
-            "Z", "I" -> targetUpdateMethod.returnEarly(1)   // Boolean hoặc Int: Trả về 1 (True)
-            else -> throw PatchException("Kiểu trả về không được hỗ trợ: ${targetUpdateMethod.returnType}")
+        // --- TẤN CÔNG 2: Tiệt đường ngắt cuộc gọi của RTC Policy ---
+        val rtcMethod = rtcUpgradePolicyFingerprint.method?.toMutable()
+        if (rtcMethod != null) {
+            // Ghi đè phương thức kiểm tra rtc_upgrade_policy_deprecated_version
+            // Buộc logic trả về false, giả lập rằng version này không hề bị deprecated
+            if (rtcMethod.returnType == "Z") {
+                rtcMethod.addInstructions(
+                    0,
+                    """
+                    const/4 v0, 0x0
+                    return v0
+                    """
+                )
+            }
+        }
+
+        // --- TẤN CÔNG 3: Chặn cờ versionUpgradeRequired (Giữ nguyên của bạn) ---
+        val versionMethod = versionUpgradeRequiredFingerprint.method?.toMutable()
+        if (versionMethod != null && versionMethod.returnType == "Z") {
+            versionMethod.addInstructions(
+                0,
+                """
+                const/4 v0, 0x0
+                return v0
+                """
+            )
         }
     }
 }
