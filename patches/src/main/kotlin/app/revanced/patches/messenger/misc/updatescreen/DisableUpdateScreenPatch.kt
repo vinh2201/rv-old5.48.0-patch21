@@ -7,7 +7,7 @@ import app.revanced.patcher.fingerprint
 
 // 1. Chộp lấy class quản lý cập nhật InAppUpdater cốt lõi
 internal val inAppUpdaterFingerprint = fingerprint {
-    strings("InAppUpdater.checkUpdateAvailability", "inAppUpdater", "InAppUpdater", "InAppUpdate", "com.facebook.messenger.app.update.InAppUpdater", "com.facebook.messenger.app.update.InAppUpdater.Companion", "com.facebook.messenger.app.update.InAppUpdater#checkUpdateAvailability", "rtc_upgrade_policy_deprecated_version")
+    strings("InAppUpdater.checkUpdateAvailability", "inAppUpdater", "InAppUpdater", "InAppUpdate", "com.facebook.messenger.app.update.InAppUpdater", "com.facebook.messenger.app.update.InAppUpdater.Companion", "com.facebook.messenger.app.update.InAppUpdater#checkUpdateAvailability", "rtc_upgrade_policy_deprecated_version", "MsgrRUPBlockFragment")
 }
 
 // 2. Chộp lấy rào cản RTC (kẻ bóp chết cuộc gọi)
@@ -22,8 +22,8 @@ internal val versionUpgradeRequiredFingerprint = fingerprint {
 
 @Suppress("unused")
 val disableInAppUpdatePatch = bytecodePatch(
-    name = "Disable in-app update and RTC wall",
-    description = "Forces all version upgrade checks and RTC update policies to return false, preventing the update wall without breaking the call flow.",
+    name = "Disable in-app update",
+    description = "Forces all version upgrade checks and RTC update policies to return false.",
 ) {
     compatibleWith("com.facebook.orca")
 
