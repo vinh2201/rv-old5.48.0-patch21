@@ -13,29 +13,37 @@ import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 @Suppress("unused")
 val hideAdsPatch = bytecodePatch(
     name = "Disable in-app update",
-    description = "Forces the version upgrade check to return false.",
+    description = "Forces the version upgrade check to return false dynamically.",
 ) {
     compatibleWith("com.facebook.orca")
 
     execute {
         val method = findUpdateStringFingerprint.method
  
-        // Find the ads free string index
+        // 1. Tìm index của chuỗi rtc_upgrade_policy_deprecated_version
         val stringIndex = findUpdateStringFingerprint.stringMatches!!.first().index
 
-        // Search backwards from the string to find the `new-instance` (TypeReference) instruction
+        // 2. Dò ngược để tìm lệnh new-instance
         val typeRefIndex = method.indexOfFirstInstructionReversedOrThrow(stringIndex) { this.opcode == Opcode.NEW_INSTANCE }
 
-        // Get the class name from the TypeReference
+        // 3. Lấy tham chiếu của class mục tiêu
         val targetClass = method.getInstruction<ReferenceInstruction>(typeRefIndex).reference as TypeReference
 
-        // Patch the ads-free method to always return true
-        fingerprint {
-            returns("I")
-            parameters()
-            custom { method, classDef ->
-                classDef == targetClass
+        // 4. Mở rộng vùng nhận diện (Fingerprint) thay vì fix cứng returns("I")
+        val targetUpdateMethod = fingerprint {
+            custom { m, classDef ->
+                // Kiểm tra đúng class, hàm không có tham số và thuộc 1 trong 3 kiểu trả về
+                classDef.type == targetClass.type && 
+                m.parameters.isEmpty() && 
+                (m.returnType == "I" || m.returnType == "Z" || m.returnType == "V")
             }
-        }.method.returnEarly(1)
+        }.method
+
+        // 5. Cấu trúc điều kiện để patch giá trị trả về tương ứng với cấu trúc của app
+        when (targetUpdateMethod.returnType) {
+            "V" -> targetUpdateMethod.returnEarly()         // Void: Không trả về gì cả
+            "Z", "I" -> targetUpdateMethod.returnEarly(1)   // Boolean hoặc Int: Trả về 1 (True)
+            else -> throw PatchException("Kiểu trả về không được hỗ trợ: ${targetUpdateMethod.returnType}")
+        }
     }
 }
