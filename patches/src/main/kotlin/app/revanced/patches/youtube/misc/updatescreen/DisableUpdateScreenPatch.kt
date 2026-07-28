@@ -3,14 +3,13 @@ package app.revanced.patches.youtube.general.updatescreen
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patcher.fingerprint
-import app.revanced.util.fingerprint.mutableClassOrThrow
+import app.revanced.patcher.patch.PatchException
 import com.android.tools.smali.dexlib2.util.MethodUtil
 
-internal val appBlockingCheckResultToStringFingerprint = fingerprint(
-    name = "appBlockingCheckResultToStringFingerprint",
-    returnType = "Ljava/lang/String;",
-    strings = listOf("AppBlockingCheckResult{intent=")
-)
+internal val appBlockingCheckResultToStringFingerprint = fingerprint {
+    returns("Ljava/lang/String;")
+    strings("AppBlockingCheckResult{intent=")
+}
 
 val disableUpdateScreen = bytecodePatch(
     name = "Disable update screen",
@@ -26,10 +25,18 @@ val disableUpdateScreen = bytecodePatch(
     )
 
     execute {
-        appBlockingCheckResultToStringFingerprint.mutableClassOrThrow().methods.first { method ->
+        // Thay thế mutableClassOrThrow() bằng cách gọi classDefOrNull tiêu chuẩn
+        val classDef = appBlockingCheckResultToStringFingerprint.classDefOrNull
+            ?: throw PatchException("appBlockingCheckResultToStringFingerprint not found")
+
+        // Tìm constructor với các tham số tương ứng (Dùng parameterTypes thay cho parameters)
+        val targetMethod = classDef.methods.first { method ->
             MethodUtil.isConstructor(method) &&
-                    method.parameters == listOf("Landroid/content/Intent;", "Z")
-        }.addInstructions(
+                    method.parameterTypes.toList() == listOf("Landroid/content/Intent;", "Z")
+        }
+
+        // Chèn mã smali (Set p1 = 0x0 / false)
+        targetMethod.addInstructions(
             1,
             "const/4 p1, 0x0"
         )
