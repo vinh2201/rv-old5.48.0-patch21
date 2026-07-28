@@ -2,6 +2,7 @@ package app.revanced.patches.youtube.general.updatescreen
 
 import app.revanced.patcher.extensions.InstructionExtensions.addInstructions
 import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patcher.fingerprint
 import app.revanced.util.fingerprint.mutableClassOrThrow
 import com.android.tools.smali.dexlib2.util.MethodUtil
 
