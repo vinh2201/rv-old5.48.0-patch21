@@ -24,15 +24,15 @@ public enum ClientType {
             "Oculus",
             "Quest 3",
             "Android",
-            "14",
-            // Android 14
-            "34",
-            "UP1A.231005.007.A1",
+            "12",
+            // Android 12.1
+            "32",
+            "SQ3A.220605.009.A1",
             "151.0.7922.72",
-            "1.74.19",
+            "1.61.48",
             false,
             false,
-            "Android VR 1.74"
+            "Android VR 1.61"
     ),
     /**
      * Uses non adaptive bitrate, which fixes audio stuttering with YT Music.
