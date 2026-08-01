@@ -27,12 +27,12 @@ public enum ClientType {
             "12",
             // Android 12.1
             "32",
-            "SQ3A.220605.009.A1",
+            "UP1A.231005.007.A1",
             "151.0.7922.72",
-            "1.61.48",
+            "1.65.10",
             false,
             false,
-            "Android VR 1.61"
+            "Android VR 1.65"
     ),
     /**
      * Uses non adaptive bitrate, which fixes audio stuttering with YT Music.
